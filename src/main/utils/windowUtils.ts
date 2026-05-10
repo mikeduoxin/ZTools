@@ -1,10 +1,4 @@
-import {
-  BaseWindow,
-  OpenDialogOptions,
-  OpenDialogReturnValue,
-  BrowserWindow,
-  dialog
-} from 'electron'
+import { OpenDialogOptions, OpenDialogReturnValue, BrowserWindow, dialog } from 'electron'
 import os from 'os'
 
 /**
@@ -114,5 +108,4 @@ export async function openDialog(
     return { success: false, error: errorMessage }
   }
   return { success: true, data: result }
-}
 }
