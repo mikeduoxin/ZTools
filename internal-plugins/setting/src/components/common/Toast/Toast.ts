@@ -21,7 +21,7 @@ interface ConfirmOptions {
   cancelText?: string
 }
 
-interface ConfirmExtraItem {
+export interface ConfirmExtraItem {
   id: string
   message: string
   defaultChecked?: boolean
@@ -31,7 +31,7 @@ interface ConfirmWithExtraOptions extends ConfirmOptions {
   extra: ConfirmExtraItem[]
 }
 
-interface ConfirmWithExtraResult {
+export interface ConfirmWithExtraResult {
   confirmed: boolean
   extra: Record<string, boolean>
 }
@@ -45,7 +45,7 @@ interface ConfirmState {
   cancelText: string
   extra: ConfirmExtraItem[]
   extraValues: Record<string, boolean>
-  resolve: ((value: any) => void) | null
+  resolve: ((value: ConfirmWithExtraResult) => void) | null
 }
 
 const toastState = ref<ToastState>({
@@ -111,20 +111,12 @@ export function useToast(): {
   }
 
   // 确认对话框
-  const confirm = (options: ConfirmOptions): Promise<boolean> => {
-    return new Promise((resolve) => {
-      confirmState.value = {
-        visible: true,
-        title: options.title || '确认操作',
-        message: options.message,
-        type: options.type || 'info',
-        confirmText: options.confirmText || '确定',
-        cancelText: options.cancelText || '取消',
-        extra: [],
-        extraValues: {},
-        resolve
-      }
+  const confirm = async (options: ConfirmOptions): Promise<boolean> => {
+    const result = await confirmWithExtra({
+      ...options,
+      extra: []
     })
+    return result.confirmed
   }
 
   /**
@@ -150,30 +142,18 @@ export function useToast(): {
   }
 
   const handleConfirm = (): void => {
-    if (confirmState.value.resolve) {
-      if (confirmState.value.extra.length > 0) {
-        confirmState.value.resolve({
-          confirmed: true,
-          extra: { ...confirmState.value.extraValues }
-        })
-      } else {
-        confirmState.value.resolve(true)
-      }
-    }
+    confirmState.value.resolve?.({
+      confirmed: true,
+      extra: { ...confirmState.value.extraValues }
+    })
     confirmState.value.visible = false
   }
 
   const handleCancel = (): void => {
-    if (confirmState.value.resolve) {
-      if (confirmState.value.extra.length > 0) {
-        confirmState.value.resolve({
-          confirmed: false,
-          extra: { ...confirmState.value.extraValues }
-        })
-      } else {
-        confirmState.value.resolve(false)
-      }
-    }
+    confirmState.value.resolve?.({
+      confirmed: false,
+      extra: { ...confirmState.value.extraValues }
+    })
     confirmState.value.visible = false
   }
 

@@ -438,7 +438,11 @@ export class PluginsAPI {
     return pathToFileURL(path.join(pluginPath, logo)).href
   }
 
-  // 删除插件
+  /**
+   * 删除插件
+   * @param pluginPath 插件路径
+   * @param options 删除选项 当 options.deleteData 显式设置为 false 时，保留插件数据
+   */
   public async deletePlugin(pluginPath: string, options: DeletePluginOptions = {}): Promise<any> {
     try {
       const plugins: any = databaseAPI.dbGet('plugins')

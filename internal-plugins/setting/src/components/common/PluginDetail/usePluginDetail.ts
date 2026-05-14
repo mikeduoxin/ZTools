@@ -322,14 +322,14 @@ export function usePluginDetail(options: UsePluginDetailOptions) {
         {
           id: 'deleteData',
           message: '同时删除插件数据',
-          defaultChecked: true
+          defaultChecked: false
         }
       ],
       confirmText: '删除',
       cancelText: '取消'
     })
     if (result.confirmed) {
-      emitFn({ deleteData: result.extra.deleteData ?? true })
+      emitFn({ deleteData: result.extra.deleteData === true })
     }
   }
 

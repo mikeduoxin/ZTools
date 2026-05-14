@@ -56,12 +56,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-
-interface ConfirmExtraItem {
-  id: string
-  message: string
-  defaultChecked?: boolean
-}
+import type { ConfirmExtraItem } from '../Toast'
 
 interface Props {
   visible: boolean
