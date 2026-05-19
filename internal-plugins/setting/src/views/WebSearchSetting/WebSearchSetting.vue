@@ -196,9 +196,12 @@ onMounted(() => {
             </div>
 
             <div class="engine-actions">
-              <span class="engine-type-badge">{{
-                engine.type === 'webpage' ? '网页' : '搜索引擎'
-              }}</span>
+              <span
+                class="engine-type-badge"
+                :class="{ 'engine-type-badge-webpage': engine.type === 'webpage' }"
+              >
+                {{ engine.type === 'webpage' ? '网页' : '搜索引擎' }}
+              </span>
               <label class="toggle toggle-sm">
                 <input
                   type="checkbox"
@@ -399,10 +402,28 @@ onMounted(() => {
 }
 
 .toggle-sm {
-  transform: scale(0.8);
-  transform-origin: center;
   display: flex;
   align-items: center;
+  width: 36px;
+  height: 20px;
+  margin: 0 7px;
+}
+
+.toggle-sm .toggle-slider {
+  border-radius: 20px;
+}
+
+.toggle-sm .toggle-slider::before {
+  width: 12px;
+  height: 12px;
+}
+
+.toggle-sm input:checked + .toggle-slider::before {
+  transform: translateX(16px);
+}
+
+.toggle-sm input:checked + .toggle-slider:hover::before {
+  transform: translateX(16px) scale(1.15);
 }
 
 .engine-url {
@@ -419,11 +440,22 @@ onMounted(() => {
   flex-shrink: 0;
   height: 22px;
   padding: 0 6px;
+  margin-right: 8px;
   border-radius: 4px;
   font-size: 11px;
   line-height: 1;
   color: var(--primary-color);
   background: var(--primary-light-bg);
+}
+
+.engine-type-badge-webpage {
+  color: #d97706;
+  background: rgba(245, 158, 11, 0.14);
+}
+
+:global([data-theme='dark']) .engine-type-badge-webpage {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.16);
 }
 
 .engine-keyword {
@@ -435,7 +467,8 @@ onMounted(() => {
 .engine-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-end;
+  gap: 6px;
   margin-left: 16px;
   flex-shrink: 0;
 }
@@ -444,6 +477,9 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
 }
 
 /* 图标按钮颜色样式 */
