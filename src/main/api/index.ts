@@ -69,6 +69,11 @@ interface ShortcutLaunchContext {
   pastedText: string | null
 }
 
+export interface GlobalShortcutPreparation {
+  target: string
+  shouldCaptureSelectedText: boolean
+}
+
 /**
  * API管理器 - 统一初始化和管理所有API模块
  */
@@ -156,7 +161,9 @@ class APIManager {
     this.setupSpecialHandlers()
 
     // 设置全局快捷键处理器（需要访问多个模块）
-    settingsAPI.setGlobalShortcutHandler((target) => this.handleGlobalShortcut(target))
+    settingsAPI.setGlobalShortcutHandler((target, context) =>
+      this.handleGlobalShortcut(target, context)
+    )
   }
 
   /**
@@ -251,6 +258,62 @@ class APIManager {
    */
   public resizeWindow(height: number): void {
     windowAPI.resizeWindow(height)
+  }
+
+  /**
+   * 预解析全局快捷键目标，判断启动前是否需要采集选中文本。
+   * 仅文本类插件命令会触发复制取词，避免无关快捷键产生副作用。
+   */
+  public async prepareGlobalShortcut(target: string): Promise<GlobalShortcutPreparation> {
+    try {
+      const parts = target.split('/')
+      const plugins: any = databaseAPI.dbGet('plugins')
+      const disabledPlugins = pluginsAPI.getDisabledPluginSet()
+      const pluginList = Array.isArray(plugins)
+        ? plugins.filter((plugin: any) => !disabledPlugins.has(plugin.path))
+        : []
+
+      if (parts.length === 2) {
+        const [pluginDescription, cmdName] = parts
+        const plugin = pluginList.find(
+          (p: any) => p.name === pluginDescription || p.title === pluginDescription
+        )
+        if (!plugin) {
+          return { target, shouldCaptureSelectedText: false }
+        }
+
+        const result = await this.findCommandInPlugin(plugin, cmdName)
+        return {
+          target,
+          shouldCaptureSelectedText: this.shouldCaptureSelectedTextForCmdType(result?.cmdType)
+        }
+      }
+
+      if (parts.length !== 1) {
+        return { target, shouldCaptureSelectedText: false }
+      }
+
+      const pluginMatches: { cmdType: string }[] = []
+      for (const plugin of pluginList) {
+        const result = await this.findCommandInPlugin(plugin, target)
+        if (result) {
+          pluginMatches.push({ cmdType: result.cmdType })
+        }
+      }
+
+      return {
+        target,
+        shouldCaptureSelectedText:
+          pluginMatches.length === 1 &&
+          this.shouldCaptureSelectedTextForCmdType(pluginMatches[0].cmdType)
+      }
+    } catch {
+      return { target, shouldCaptureSelectedText: false }
+    }
+  }
+
+  private shouldCaptureSelectedTextForCmdType(cmdType?: string): boolean {
+    return cmdType === 'text' || cmdType === 'over' || cmdType === 'regex'
   }
 
   /**

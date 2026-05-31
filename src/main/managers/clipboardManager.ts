@@ -96,6 +96,7 @@ class ClipboardManager {
   // 记录最后一次复制的内容（统一管理）
   private lastCopiedContent: LastCopiedContent | null = null
   private lastCopiedSequence = 0
+  private lastCopiedSequenceWaiters = new Map<number, Set<(content: LastCopiedContent) => void>>()
 
   // 临时取消剪贴板监听的计时器（防止 paste API 写入剪贴板时自我触发）
   private cancelWatchTimeout: ReturnType<typeof setTimeout> | null = null
@@ -235,7 +236,6 @@ class ClipboardManager {
       }
 
       if (item) {
-        // console.log('[Clipboard] 新剪贴板内容:', item)
         await this.saveItem(item as ClipboardItem)
         // 通知插件剪贴板变化
         pluginManager?.sendPluginMessage('clipboard-change', item)
@@ -267,6 +267,7 @@ class ClipboardManager {
         timestamp: Date.now(),
         sequence: ++this.lastCopiedSequence
       }
+      this.resolveLastCopiedSequenceWaiters(this.lastCopiedContent)
 
       // 生成 hash（基于所有文件路径）
       const hashContent = files.map((f) => f.path).join('|')
@@ -314,6 +315,7 @@ class ClipboardManager {
         timestamp: Date.now(),
         sequence: ++this.lastCopiedSequence
       }
+      this.resolveLastCopiedSequenceWaiters(this.lastCopiedContent)
 
       // 检查图片大小
       if (buffer.length > this.config.maxImageSize) {
@@ -373,6 +375,7 @@ class ClipboardManager {
       timestamp: Date.now(),
       sequence: ++this.lastCopiedSequence
     }
+    this.resolveLastCopiedSequenceWaiters(this.lastCopiedContent)
 
     return {
       id: uuidv4(),
@@ -381,6 +384,19 @@ class ClipboardManager {
       hash: createHash('md5').update(text).digest('hex'),
       content: text,
       preview: text.length > 100 ? text.slice(0, 100) + '...' : text
+    }
+  }
+
+  private resolveLastCopiedSequenceWaiters(content: LastCopiedContent): void {
+    for (const [minSequence, waiters] of this.lastCopiedSequenceWaiters.entries()) {
+      if (content.sequence <= minSequence) {
+        continue
+      }
+
+      for (const resolve of waiters) {
+        resolve(content)
+      }
+      this.lastCopiedSequenceWaiters.delete(minSequence)
     }
   }
 
@@ -800,6 +816,42 @@ class ClipboardManager {
   // 获取最后一次复制内容的序号
   public getLastCopiedSequence(): number {
     return this.lastCopiedContent?.sequence ?? 0
+  }
+
+  /**
+   * 等待下一次晚于指定序号的复制内容。
+   * 若复制动作没有真正写入剪贴板，会在超时后返回 null，避免快捷键链路永久挂起。
+   */
+  public waitForNextCopiedContent(
+    minSequence: number,
+    timeoutMs: number = 1500
+  ): Promise<LastCopiedContent | null> {
+    const latestContent = this.lastCopiedContent
+    if (latestContent && latestContent.sequence > minSequence) {
+      return Promise.resolve(latestContent)
+    }
+
+    return new Promise((resolve) => {
+      const waiters = this.lastCopiedSequenceWaiters.get(minSequence) ?? new Set()
+      let timer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+        waiters.delete(wrappedResolve)
+        if (waiters.size === 0) {
+          this.lastCopiedSequenceWaiters.delete(minSequence)
+        }
+        resolve(null)
+      }, timeoutMs)
+
+      const wrappedResolve = (content: LastCopiedContent) => {
+        if (timer) {
+          clearTimeout(timer)
+          timer = null
+        }
+        resolve(content)
+      }
+
+      waiters.add(wrappedResolve)
+      this.lastCopiedSequenceWaiters.set(minSequence, waiters)
+    })
   }
 
   // 获取最后一次复制的文本（在指定时间内）- 兼容旧 API
