@@ -155,6 +155,10 @@ class ClipboardManager {
     className?: string
     hwnd?: number
   }): void {
+    //Windows下任务栏成为前台窗口时，阻止当前窗口数据的切换
+    if (data.app === 'explorer.exe' && data.className === 'Shell_TrayWnd') {
+      return
+    }
     // 直接使用原生数据，保留所有字段
     this.currentWindow = {
       app: data.app,
@@ -841,7 +845,7 @@ class ClipboardManager {
         resolve(null)
       }, timeoutMs)
 
-      const wrappedResolve = (content: LastCopiedContent) => {
+      const wrappedResolve = (content: LastCopiedContent): void => {
         if (timer) {
           clearTimeout(timer)
           timer = null
