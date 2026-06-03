@@ -66,6 +66,17 @@ interface NativeAddon {
     hwnd: number,
     callback: (url: string | null) => void
   ) => void
+  /**
+   * 获取当前选中的内容（支持文本、文件、图像）
+   * 实现方式：
+   * - Windows: 优先使用 UI Automation API，回退到剪贴板方法
+   * - macOS: 使用模拟复制方法（Cmd+C）
+   * 自动暂停 clipboardMonitor，防止误触发监听
+   */
+  getSelectedContent: () => Array<{
+    type: 'text' | 'file' | 'image'
+    data: string | string[]
+  }>
 }
 
 interface WindowInfo {
@@ -525,6 +536,45 @@ export class WindowManager {
       throw new TypeError('x and y must be finite numbers')
     }
     return (addon as NativeAddon).simulateMouseRightClick(x, y)
+  }
+
+  /**
+   * 获取当前选中的内容（支持文本、文件、图像）
+   *
+   * 实现方式：
+   * - Windows: 优先使用 UI Automation API，回退到剪贴板方法（适用于 Cursor/VS Code 等编辑器）
+   * - macOS: 使用模拟复制方法（Cmd+C）
+   *
+   * 在模拟复制时会自动暂停内部的 clipboardMonitor，防止误触发监听自身发起的事件
+   *
+   * @returns {Array<{type: string, data: any}>} 选中内容数组
+   * - type: 'text' | 'file' | 'image'
+   * - data: 根据类型不同：
+   *   - text: 字符串
+   *   - file: 文件路径字符串数组
+   *   - image: base64 编码的 PNG 图像（带 format 和 encoding 字段）
+   *
+   * @example
+   * const contents = WindowManager.getSelectedContent();
+   * contents.forEach(item => {
+   *   switch (item.type) {
+   *     case 'text':
+   *       console.log('Selected text:', item.data);
+   *       break;
+   *     case 'file':
+   *       console.log('Selected files:', item.data);
+   *       break;
+   *     case 'image':
+   *       console.log('Selected image (base64):', item.data.substring(0, 50) + '...');
+   *       break;
+   *   }
+   * });
+   */
+  static getSelectedContent(): Array<{ type: 'text' | 'file' | 'image'; data: string | string[] }> {
+    if (platform === 'linux') {
+      return []
+    }
+    return (addon as NativeAddon).getSelectedContent()
   }
 }
 

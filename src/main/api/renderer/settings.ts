@@ -1,6 +1,5 @@
 import { app, globalShortcut, ipcMain, nativeTheme } from 'electron'
 import type { PluginManager } from '../../managers/pluginManager'
-import clipboardManager from '../../managers/clipboardManager.js'
 
 // 共享API（主程序和插件都能用）
 import { WindowManager as NativeWindowManager } from '../../core/native/index.js'
@@ -12,10 +11,6 @@ import windowManager from '../../managers/windowManager.js'
 import type { GlobalShortcutPreparation } from '../index'
 import api from '../index'
 import databaseAPI from '../shared/database'
-
-const GLOBAL_SHORTCUT_COOLDOWN_MS = 180
-const KEY_RELEASE_WAIT_TIMEOUT_MS = 180
-const CLIPBOARD_COPY_WAIT_TIMEOUT_MS = 180
 
 /**
  * 快捷键触发时携带的文件输入
@@ -54,10 +49,9 @@ export class SettingsAPI {
 
   // 临时快捷键录制相关
   private recordingShortcuts: string[] = []
-  private lastGlobalShortcutTriggeredAt = new Map<string, number>()
-  private globalShortcutKeyboardStateReleasers = new Map<string, () => void>()
   // 全局快捷键配置映射（存储每个快捷键的 autoCopy 等配置）
   private globalShortcutConfigs: Map<string, { autoCopy: boolean }> = new Map()
+  private globalShortcutKeyboardStateReleasers = new Map<string, () => void>()
 
   private setupIPC(): void {
     // 主题
@@ -406,52 +400,26 @@ export class SettingsAPI {
 
   /**
    * 判断某个快捷键目标是否允许在阻断期内再次触发。
-   * 同一 target 在 180ms 内只会放行一次。
+   * 由于新的 native getSelectedContent() 方法不再需要等待，防抖逻辑已移除。
    */
-  private shouldTriggerGlobalShortcut(target: string): boolean {
-    const now = Date.now()
-    const lastTriggeredAt = this.lastGlobalShortcutTriggeredAt.get(target) ?? 0
-    if (now - lastTriggeredAt < GLOBAL_SHORTCUT_COOLDOWN_MS) {
-      return false
-    }
-
-    this.lastGlobalShortcutTriggeredAt.set(target, now)
-    for (const [cachedTarget, timestamp] of this.lastGlobalShortcutTriggeredAt.entries()) {
-      if (now - timestamp >= GLOBAL_SHORTCUT_COOLDOWN_MS) {
-        this.lastGlobalShortcutTriggeredAt.delete(cachedTarget)
-      }
-    }
+  private shouldTriggerGlobalShortcut(_target: string): boolean {
     return true
   }
 
   /**
-   * 获取当前选中文本并转换成快捷键启动上下文。
-   * 会等待触发快捷键的按键全部弹起后再执行复制，避免修饰键残留改变复制组合键。
+   * 获取当前选中内容并转换成快捷键启动上下文。
+   * 使用 native getSelectedContent() 方法，自动处理按键释放和剪贴板暂停。
    */
   private async captureSelectedTextContext(): Promise<ShortcutLaunchContext> {
-    console.log('[Settings] 开始捕获选中文本...')
+    console.log('[Settings] 开始捕获选中内容...')
     try {
-      console.log('[Settings] 等待按键释放...')
-      await doubleTapManager.waitForAllKeysReleased(KEY_RELEASE_WAIT_TIMEOUT_MS)
-      console.log('[Settings] 按键已释放')
+      const contents = NativeWindowManager.getSelectedContent()
+      console.log('[Settings] 捕获到内容数量:', contents.length)
 
-      const lastSequence = clipboardManager.getLastCopiedSequence()
-      console.log('[Settings] 上次剪贴板序列号:', lastSequence)
-
-      const modifier = process.platform === 'darwin' ? 'meta' : 'ctrl'
-      console.log('[Settings] 模拟按键: Ctrl/Cmd+C')
-      NativeWindowManager.simulateKeyboardTap('c', modifier)
-
-      console.log('[Settings] 等待剪贴板更新，超时时间:', CLIPBOARD_COPY_WAIT_TIMEOUT_MS, 'ms')
-      const lastCopiedContent = await clipboardManager.waitForNextCopiedContent(
-        lastSequence,
-        CLIPBOARD_COPY_WAIT_TIMEOUT_MS
-      )
-
-      console.log('[Settings] 剪贴板内容:', lastCopiedContent)
-
-      if (lastCopiedContent?.type === 'text' && typeof lastCopiedContent.data === 'string') {
-        const text = lastCopiedContent.data
+      // 处理文本内容
+      const textContent = contents.find((item) => item.type === 'text')
+      if (textContent && typeof textContent.data === 'string') {
+        const text = textContent.data
         console.log('[Settings] 捕获到文本，长度:', text.length)
         if (text.trim()) {
           console.log('[Settings] 文本捕获成功')
@@ -464,16 +432,41 @@ export class SettingsAPI {
         } else {
           console.log('[Settings] 文本为空')
         }
-      } else {
-        console.log('[Settings] 未捕获到文本内容')
       }
+
+      // 处理图片内容
+      const imageContent = contents.find((item) => item.type === 'image')
+      if (imageContent && typeof imageContent.data === 'string') {
+        console.log('[Settings] 捕获到图片')
+        return {
+          searchQuery: '',
+          pastedImage: imageContent.data,
+          pastedFiles: null,
+          pastedText: null
+        }
+      }
+
+      // 处理文件内容
+      const fileContent = contents.find((item) => item.type === 'file')
+      if (fileContent && Array.isArray(fileContent.data)) {
+        console.log('[Settings] 捕获到文件，数量:', fileContent.data.length)
+        const files = fileContent.data.map((path) => ({
+          path,
+          name: path.split(/[/\\]/).pop() || '',
+          isDirectory: false, // 需要进一步判断，这里暂时设为 false
+          isFile: true
+        }))
+        return {
+          searchQuery: '',
+          pastedImage: null,
+          pastedFiles: files,
+          pastedText: null
+        }
+      }
+
+      console.log('[Settings] 未捕获到任何内容')
     } catch (error) {
-      console.error('[Settings] 获取选中文本失败:', error)
-      if (error instanceof Error && error.message.includes('timeout')) {
-        console.error(
-          '[Settings] 等待复制超时！可能原因：1) 没有选中文本 2) 应用不支持复制 3) 网络延迟'
-        )
-      }
+      console.error('[Settings] 获取选中内容失败:', error)
     }
 
     return {
