@@ -246,8 +246,6 @@ class WindowManager {
       this.leftMouseDown = false
       if (this.pendingBlurHideOnMouseUp) {
         this.resolveDeferredBlurHideOnMouseUp()
-      } else {
-        this.resolveMouseUpVisibility()
       }
     })
 
