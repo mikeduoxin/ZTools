@@ -1228,18 +1228,21 @@ useJumpFunction<ShortcutsSettingJumpFunction>(async (state) => {
 
               <div class="shortcut-meta">
                 <!-- 自动复制开关（仅全局快捷键） -->
-                <label
+                <div
                   v-if="activeTab === 'global'"
-                  class="toggle auto-copy-toggle"
+                  class="auto-copy-control"
                   :title="(shortcut.autoCopy ?? false) ? '已启用自动复制' : '已禁用自动复制'"
                 >
-                  <input
-                    type="checkbox"
-                    :checked="shortcut.autoCopy ?? false"
-                    @change="handleAutoCopyToggle(shortcut, $event)"
-                  />
-                  <span class="toggle-slider"></span>
-                </label>
+                  <span class="auto-copy-label">自动复制</span>
+                  <label class="toggle auto-copy-toggle">
+                    <input
+                      type="checkbox"
+                      :checked="shortcut.autoCopy ?? false"
+                      @change="handleAutoCopyToggle(shortcut, $event)"
+                    />
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
 
                 <button
                   class="icon-btn edit-btn"
@@ -1528,6 +1531,20 @@ useJumpFunction<ShortcutsSettingJumpFunction>(async (state) => {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.auto-copy-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.auto-copy-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .built-in-toggle {
