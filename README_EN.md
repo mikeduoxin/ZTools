@@ -28,7 +28,7 @@ English | [简体中文](./README.md)
 - 🌍 **Cross-Platform** - Native support for macOS and Windows with unified experience
 - 🔒 **Data Isolation** - Independent plugin data storage, secure and reliable
 - 🛠️ **Developer Friendly** - Complete TypeScript type support, hot reload development
-- ⚙️ **Modern Tech Stack** - Electron 41.7 + Node 24.15 + Chrome 146
+- ⚙️ **Modern Tech Stack** - Electron 41 + Node 24.15 + Chrome 146
 
 ## 📸 Preview
 
